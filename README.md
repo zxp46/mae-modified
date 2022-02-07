@@ -1,7 +1,7 @@
 ## Masked Autoencoders: A PyTorch Implementation
 
 ### Usage
-Single GPU training, use run.sh, best batch size should be 256 from SimSiam paper. Multiple GPU training, use run_distributed.sh. Downstream task use run_train.sh
+Single GPU training, use run.sh, best batch size should be 256 from SimSiam paper. Multiple GPU training, use run_distributed.sh. Downstream task use run_train.sh. Change the imagenet dir in the bash files accordingly.
 
 ### Original MAE README
 <p align="center">
