@@ -21,7 +21,6 @@ import util.lr_sched as lr_sched
 def train_one_epoch(model: torch.nn.Module,
                     data_loader: Iterable,
                     optimizer: torch.optim.Optimizer,
-                    optimizer2: torch.optim.Optimizer,
                     device: torch.device, epoch: int, loss_scaler,
                     log_writer=None,
                     args=None):
@@ -38,17 +37,17 @@ def train_one_epoch(model: torch.nn.Module,
     if log_writer is not None:
         print('log_dir: {}'.format(log_writer.log_dir))
 
-    for data_iter_step, ([samples, smaller_samples, pad, sep], _) in enumerate(
+    for data_iter_step, ([samples, smaller_samples, sep], _) in enumerate(
             metric_logger.log_every(data_loader, print_freq, header)):
         # we use a per iteration (instead of per epoch) lr scheduler
-        if data_iter_step % accum_iter == 0:
-            lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
+        lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
+
         # pzx modified #
         samples = samples.to(device, non_blocking=True)
 
         with torch.cuda.amp.autocast():
-            total_loss, sim_loss, loss, _, _, = model(samples, smaller_samples, pad, mask_ratio=args.mask_ratio,
-                                                        device=device, double_loss=True)
+            total_loss, sim_loss, loss, _, _, = model(samples, smaller_samples, mask_ratio=args.mask_ratio,
+                                                          device=device, double_loss=True)
         total_loss_value, sim_loss_value, loss_value = total_loss.item(), sim_loss.item(), loss.item()
         print("Losses(total, new, mae) is {}, stopping training".format((total_loss_value, sim_loss_value, loss_value)))
         # end modify #
@@ -69,6 +68,7 @@ def train_one_epoch(model: torch.nn.Module,
         metric_logger.update(style_loss=sim_loss_value)
 
         lr = optimizer.param_groups[0]["lr"]
+
         metric_logger.update(lr=lr)
 
         loss_value_reduce = misc.all_reduce_mean(total_loss_value)
