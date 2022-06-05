@@ -145,7 +145,7 @@ class MaskedAutoencoderViT(nn.Module):
         # unshuffle to get the binary mask
         mask = torch.gather(mask, dim=1, index=ids_restore)
 
-        return x_masked, mask, ids_restore
+        return x_masked, mask, ids_restore, ids_keep
 
     def forward_encoder(self, x, mask_ratio):
         # embed patches
@@ -155,17 +155,30 @@ class MaskedAutoencoderViT(nn.Module):
         x = x + self.pos_embed[:, 1:, :]
 
         # masking: length -> length * mask_ratio
-        x, mask, ids_restore = self.random_masking(x, mask_ratio)
+        x, mask, ids_restore, ids_keep = self.random_masking(x, mask_ratio)
 
         # append cls token
         cls_token = self.cls_token + self.pos_embed[:, :1, :]
         cls_tokens = cls_token.expand(x.shape[0], -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
+        x_ = self.norm(x)
+        x_ = x_[:, 1:, :]
+        y = x_ - self.pos_embed[:, 1+ids_keep, :]
+        x_ = x_.mean(dim=-1)
+        y = y.mean(dim=-1)
+        print("deviation of patches before encoder")
+        print(x_.std(dim=-1), y.std(dim=-1))
 
         # apply Transformer blocks
         for blk in self.blocks:
             x = blk(x)
         x = self.norm(x)
+        x_ = x[:, 1:, :]
+        y = x_ - self.pos_embed[:, 1+ids_keep, :]
+        x_ = x_.mean(dim=-1)
+        y = y.mean(dim=-1)
+        print("deviation of patches")
+        print(x_.std(dim=-1), y.std(dim=-1))
 
         return x, mask, ids_restore
 
@@ -186,13 +199,17 @@ class MaskedAutoencoderViT(nn.Module):
         for blk in self.decoder_blocks:
             x = blk(x)
         x = self.decoder_norm(x)
+        x_ = x[:, 1:, :]
+        x_ = x_.mean(dim=-1)
+        print("deviation of patches decoder")
+        print(x_.std(dim=-1))
+
 
         # predictor projection
         x = self.decoder_pred(x)
 
         # remove cls token
         x = x[:, 1:, :]
-
         return x
 
     def forward_loss(self, imgs, pred, mask):

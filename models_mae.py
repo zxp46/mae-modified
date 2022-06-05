@@ -86,7 +86,7 @@ class GridPadding(object):
 
     def __repr__(self):
         return self.__class__.__name__ + '()'
-        
+
 """
 
 
@@ -125,7 +125,7 @@ class MaskedAutoencoderViT(nn.Module):
                                        nn.ReLU(inplace=True),  # first layer
                                        nn.Linear(decoder_embed_dim, decoder_embed_dim, bias=False),
                                        nn.BatchNorm1d(decoder_embed_dim),
-                                       nn.ReLU(inplace=Ttrue),  # second layer
+                                       nn.ReLU(inplace=True),  # second layer
                                        nn.Linear(decoder_embed_dim, dim, bias=False),
                                        nn.BatchNorm1d(dim, affine=False))  # output layer
 
@@ -310,6 +310,8 @@ class MaskedAutoencoderViT(nn.Module):
 
         # apply Transformer blocks
         for i, blk in enumerate(self.decoder_blocks):
+            if torch.isnan(x).any():
+                print("break at block", i)
             x = blk(x)
             """
             if i == 0:
@@ -331,7 +333,6 @@ class MaskedAutoencoderViT(nn.Module):
                     if not need_mask:
                         return x, cls, p
             """
-
         x = self.decoder_norm(x)
         cls = x[:, 0, :].squeeze()
 
@@ -340,7 +341,6 @@ class MaskedAutoencoderViT(nn.Module):
 
         # remove cls token
         x = x[:, 1:, :]
-
 
         return x, cls, p
 
@@ -357,7 +357,7 @@ class MaskedAutoencoderViT(nn.Module):
         """
         imgs: [N, 3, H, W]
         pred: [N, L, p*p*3]
-        mask: [N, L], 0 is keep, 1 is remove, 
+        mask: [N, L], 0 is keep, 1 is remove,
         """
         target = self.patchify(imgs)
         if self.norm_pix_loss:
@@ -387,7 +387,7 @@ class MaskedAutoencoderViT(nn.Module):
         criterion = nn.CosineSimilarity(dim=1)
         return -(criterion(p, z_).mean() + criterion(p_, z).mean()) * 0.5
 
-    def forward(self, imgs, smaller_imgs, mask_ratio=0.75, device=None, double_loss=False):
+    def forward(self, imgs, smaller_imgs, mask_ratio=0.75, device=None, double_loss=False, epoch=0):
         latent, mask, ids_restore, _ = self.forward_encoder(imgs, mask_ratio, None)
         pred, z, _ = self.forward_decoder(latent, ids_restore, True, False)  # [N, L, p*p*3]
         loss = self.forward_loss(imgs, pred, mask)
@@ -404,7 +404,7 @@ class MaskedAutoencoderViT(nn.Module):
             else:
                 sim_loss = self.twin_loss(z, z_, p, p_)
             """
-            total_loss = loss + 0.12 * sim_loss
+            total_loss = loss + 0.25 * (0.995 ** epoch) * sim_loss
 
         else:
             sim_loss = torch.zeros(1).to(device)

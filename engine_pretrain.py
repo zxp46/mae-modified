@@ -37,6 +37,7 @@ def train_one_epoch(model: torch.nn.Module,
     if log_writer is not None:
         print('log_dir: {}'.format(log_writer.log_dir))
 
+    sim_loss = -0.96
     for data_iter_step, ([samples, smaller_samples, sep], _) in enumerate(
             metric_logger.log_every(data_loader, print_freq, header)):
         # we use a per iteration (instead of per epoch) lr scheduler
@@ -47,7 +48,7 @@ def train_one_epoch(model: torch.nn.Module,
 
         with torch.cuda.amp.autocast():
             total_loss, sim_loss, loss, _, _, = model(samples, smaller_samples, mask_ratio=args.mask_ratio,
-                                                          device=device, double_loss=True)
+                                                      device=device, double_loss=True, epoch=epoch)
         total_loss_value, sim_loss_value, loss_value = total_loss.item(), sim_loss.item(), loss.item()
         print("Losses(total, new, mae) is {}, stopping training".format((total_loss_value, sim_loss_value, loss_value)))
         # end modify #

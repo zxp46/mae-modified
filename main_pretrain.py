@@ -186,7 +186,7 @@ def main(args):
             log_writer=log_writer,
             args=args
         )
-        if args.output_dir and (epoch % 20 == 0 or epoch + 1 == args.epochs):
+        if args.output_dir and (epoch % 30 == 0 or epoch + 1 == args.epochs):
             misc.save_model(
                 args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
                 loss_scaler=loss_scaler, epoch=epoch)
@@ -263,15 +263,14 @@ class SimMIMTransform:
     def __init__(self, args):
         self.transform_img = transforms.Compose([
             transforms.RandomResizedCrop(args.input_size, scale=(0.2, 1.0), interpolation=3),  # 3 is bicubic
-            transforms.RandomApply([
-                transforms.ColorJitter(0.4, 0.4, 0.2, 0.1)  # not strengthened
-            ], p=0.8),
-            transforms.RandomGrayscale(p=0.2),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor()])
 
+        self.add_noise = transforms.Compose([
+            transforms.RandomGrayscale(p=1)])
+
         self.transform_smaller_img = transforms.Compose([
-            transforms.RandomResizedCrop((112, 112), scale=(0.8, 4.0), interpolation=3),  # 3 is bicubic
+            transforms.RandomResizedCrop((112, 112), scale=(1.0, 1.0), interpolation=3),  # 3 is bicubic
             transforms.RandomApply([
                 transforms.ColorJitter(0.4, 0.4, 0.2, 0.1)  # not strengthened
             ], p=0.8),
@@ -287,9 +286,11 @@ class SimMIMTransform:
     def __call__(self, img):
         smaller_img = self.transform_smaller_img(img)
         img = self.transform_img(img)
+        img_color_remove = self.add_noise(img)
         img = transforms.Normalize(mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD)(img)
+        img_color_remove = transforms.Normalize(mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD)(img_color_remove)
 
-        return img, smaller_img, self.sep
+        return img, smaller_img, self.sep, img_color_remove
 
 
 if __name__ == '__main__':

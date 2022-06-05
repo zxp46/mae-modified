@@ -39,13 +39,23 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
         x = torch.cat((cls_tokens, x), dim=1)
         x = x + self.pos_embed
         x = self.pos_drop(x)
+        x_ = self.fc_norm(x)
+        x_ = x_[:, 1:, :]
+        x_ = x_.mean(dim=-1)
+        print("deviation of patches before encoder")
+        print(x_.std(dim=-1))
 
         for blk in self.blocks:
             x = blk(x)
 
         if self.global_pool:
+            x_ = x[:, 1:, :]
             x = x[:, 1:, :].mean(dim=1)  # global pool without cls token
             outcome = self.fc_norm(x)
+            x_ = self.fc_norm(x_)
+            x_ = x_.mean(dim=-1)
+            print("deviation of patches")
+            print(x_.std(dim=-1))
         else:
             x = self.norm(x)
             outcome = x[:, 0]
