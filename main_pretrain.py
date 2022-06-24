@@ -8,6 +8,14 @@
 # DeiT: https://github.com/facebookresearch/deit
 # BEiT: https://github.com/microsoft/unilm/tree/master/beit
 # --------------------------------------------------------
+from engine_pretrain import train_one_epoch
+import models_mae
+import random
+from PIL import ImageFilter, ImageOps
+from util.misc import NativeScalerWithGradNormCount as NativeScaler
+import util.misc as misc
+from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
+import timm.optim.optim_factory as optim_factory
 import argparse
 import datetime
 import json
@@ -25,17 +33,6 @@ import torchvision.datasets as datasets
 import timm
 
 assert timm.__version__ == "0.3.2"  # version check
-import timm.optim.optim_factory as optim_factory
-from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
-
-import util.misc as misc
-from util.misc import NativeScalerWithGradNormCount as NativeScaler
-from PIL import ImageFilter, ImageOps
-import random
-
-import models_mae
-
-from engine_pretrain import train_one_epoch
 
 
 def get_args_parser():
@@ -126,7 +123,8 @@ def main(args):
 
     # simple augmentation
     transform_train = SimMIMTransform(args)
-    dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
+    dataset_train = datasets.ImageFolder(os.path.join(
+        args.data_path, 'train'), transform=transform_train)
     print(dataset_train)
 
     sampler_train = torch.utils.data.RandomSampler(dataset_train)
@@ -167,8 +165,10 @@ def main(args):
     model = torch.nn.parallel.DataParallel(model)
 
     # following timm: set wd as 0 for bias and norm layers
-    param_groups = optim_factory.add_weight_decay(model_without_ddp, args.weight_decay)
-    param_groups_moco = optim_factory.add_weight_decay(model_without_ddp, args.siam_weight_decay)
+    param_groups = optim_factory.add_weight_decay(
+        model_without_ddp, args.weight_decay)
+    param_groups_moco = optim_factory.add_weight_decay(
+        model_without_ddp, args.siam_weight_decay)
     optimizer = torch.optim.AdamW(param_groups, lr=args.lr, betas=(0.9, 0.95))
     optimizer_moco = torch.optim.AdamW(param_groups_moco, lr=args.lr)
     print(optimizer)
@@ -220,11 +220,13 @@ class GridPadding(object):
         W = W * self.sep
         mat_size = (H // self.window_size, W // self.window_size)
         x = torch.ones(mat_size, dtype=image.dtype).to(image.device)
-        image = transforms.Normalize(mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD)(image)
+        image = transforms.Normalize(
+            mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD)(image)
         x[::self.sep] = 0
         x[:, ::self.sep] = 0
         self.mask = torch.nonzero(x.view(-1)).t().squeeze()
-        repeat_idx = torch.arange(x.shape[0]).repeat_interleave(self.window_size)
+        repeat_idx = torch.arange(
+            x.shape[0]).repeat_interleave(self.window_size)
         x = x.flatten().repeat_interleave(self.window_size)
         x = x.view(H // self.window_size, W)
         x = x[repeat_idx]
@@ -253,16 +255,19 @@ class GaussianBlur(object):
         x = x.filter(ImageFilter.GaussianBlur(radius=sigma))
         return x
 
+
 class Solarize(object):
     """Solarize augmentation from BYOL: https://arxiv.org/abs/2006.07733"""
 
     def __call__(self, x):
         return ImageOps.solarize(x)
 
+
 class SimMIMTransform:
     def __init__(self, args):
         self.transform_img = transforms.Compose([
-            transforms.RandomResizedCrop(args.input_size, scale=(0.2, 1.0), interpolation=3),  # 3 is bicubic
+            transforms.RandomResizedCrop(args.input_size, scale=(
+                0.2, 1.0), interpolation=3),  # 3 is bicubic
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor()])
 
@@ -270,7 +275,8 @@ class SimMIMTransform:
             transforms.RandomGrayscale(p=1)])
 
         self.transform_smaller_img = transforms.Compose([
-            transforms.RandomResizedCrop((112, 112), scale=(1.0, 1.0), interpolation=3),  # 3 is bicubic
+            transforms.RandomResizedCrop((64, 64), scale=(
+                1.0, 1.0), interpolation=3),  # 3 is bicubic
             transforms.RandomApply([
                 transforms.ColorJitter(0.4, 0.4, 0.2, 0.1)  # not strengthened
             ], p=0.8),
@@ -287,8 +293,10 @@ class SimMIMTransform:
         smaller_img = self.transform_smaller_img(img)
         img = self.transform_img(img)
         img_color_remove = self.add_noise(img)
-        img = transforms.Normalize(mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD)(img)
-        img_color_remove = transforms.Normalize(mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD)(img_color_remove)
+        img = transforms.Normalize(
+            mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD)(img)
+        img_color_remove = transforms.Normalize(
+            mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD)(img_color_remove)
 
         return img, smaller_img, self.sep, img_color_remove
 
