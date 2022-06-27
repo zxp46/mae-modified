@@ -412,9 +412,12 @@ class MaskedAutoencoderViT(nn.Module):
 
     def H(self, s, t,  temps, tempt):
         t = t.detach()
-        s = F.softmax(s/temps, dim=1)
-        t = F.softmax(t/tempt, dim=1)
-        return -torch.sum((torch.dot(t, torch.log(s))), dim=-1)
+        s = F.softmax(s/temps, dim=1).unsqueeze(dim=-1)
+        t = F.softmax(t/tempt, dim=1).unsqueeze(dim=-1)
+        tmp = t*torch.log(s).transpose(1,2)
+        tmp = tmp.squeeze()
+        print(tmp.shape)
+        return -torch.sum(tmp, dim=-1)
 
     def forward(self, imgs, smaller_imgs, mask_ratio=0.75, device=None, double_loss=False, epoch=0):
         latent, mask, ids_restore, _ = self.forward_encoder(
